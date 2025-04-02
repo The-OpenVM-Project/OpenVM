@@ -1,139 +1,108 @@
 package MemoryManager
 
-/*
-MIT License
-
-Copyright (c) 2025 The OpenVM Project
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
 import "core:thread"
 import "core:sync"
 import "core:mem"
+import "core:encoding/uuid"
+import "../../OpenVMLibraryLoader/Types"
 
-QueueMutex: sync.Mutex // Mutex for queue operations
-HeapMutex: sync.Mutex // Mutex for the heap
+// Global queue and mutex
+GlobalQueue: Types.Queue
+QueueMutex: sync.Mutex
 
-// Queue Definition
-Queue :: [dynamic]any
-
-// Creates an empty queue
+// Initialize the global queue (must be called before use)
 @export
-OpenVM_CreateQueue :: proc() -> Queue {
-    return [dynamic]any{} // Initialize an empty dynamic array for the queue
-}
-
-// Enqueue operation to add a value to the queue (thread-safe)
-@export
-Enqueue :: proc(queue: ^Queue, value: any) {
+OpenVM_InitQueue :: proc() {
     sync.lock(&QueueMutex)
     defer sync.unlock(&QueueMutex)
-    append_elem(queue, value)
+    GlobalQueue = [dynamic]any{}
 }
 
-// Dequeue operation to remove and return the value from the queue (thread-safe)
+// Enqueue operation (thread-safe)
 @export
-Dequeue :: proc(queue: ^Queue) -> any {
+OpenVM_Enqueue :: proc(value: any) {
     sync.lock(&QueueMutex)
     defer sync.unlock(&QueueMutex)
+    append_elem(&GlobalQueue, value)
+}
 
-    if len(queue) == 0 {
-        return nil // Return nil if queue is empty
+// Dequeue operation (thread-safe)
+@export
+OpenVM_Dequeue :: proc() -> any {
+    sync.lock(&QueueMutex)
+    defer sync.unlock(&QueueMutex)
+    if len(GlobalQueue) == 0 {
+        return nil
     }
-
-    return pop(queue) // Directly pop from queue
+    return pop(&GlobalQueue)
 }
 
-// Delete the queue to free its memory (thread-safe)
+// Stack operations
 @export
-OpenVM_DeleteQueue :: proc(queue: ^Queue) {
-    sync.lock(&QueueMutex)
-    defer sync.unlock(&QueueMutex)
-    delete_dynamic_array(queue^) // Properly free queue memory
-}
-
-
-
-// Stack structure
-OpenVM_Stack :: struct {
-    stack: [dynamic]any,
-    function_arg_stack: []any,
-    stack_size: uint,
-    function_arg_stack_size: uint,
-    mutex: sync.Mutex
+OpenVM_CreateStack :: proc() -> (^Types.OpenVM_Stack, mem.Allocator_Error) {
+    return new(Types.OpenVM_Stack)
 }
 
 @export
-OpenVM_CreateStack :: proc() -> (^OpenVM_Stack, mem.Allocator_Error) {
-    return new(OpenVM_Stack)
-}
-
-@export
-OpenVM_DeleteStack :: proc(stack: ^OpenVM_Stack) -> mem.Allocator_Error {
+OpenVM_DeleteStack :: proc(stack: ^Types.OpenVM_Stack) -> mem.Allocator_Error {
     return free(stack)
 }
 
 @export
-OpenVM_PushStack :: proc(data: any, stack: ^OpenVM_Stack) {
-    stack_mutex := &stack.mutex
-    sync.lock(stack_mutex)
-    defer sync.unlock(stack_mutex)
+OpenVM_PushStack :: proc(data: any, stack: ^Types.OpenVM_Stack) {
+    sync.lock(&stack.mutex)
+    defer sync.unlock(&stack.mutex)
     append_elem(&stack.stack, data)
     stack.stack_size = size_of(stack.stack)
-
 }
 
 @export
-OpenVM_PopStack :: proc(stack: ^OpenVM_Stack) -> any {
-    stack_mutex := &stack.mutex
-    sync.lock(stack_mutex)
-    defer sync.unlock(stack_mutex)
+OpenVM_PopStack :: proc(stack: ^Types.OpenVM_Stack) -> any {
+    sync.lock(&stack.mutex)
+    defer sync.unlock(&stack.mutex)
     data := pop(&stack.stack)
     stack.stack_size = size_of(stack.stack)
     return data
 }
 
-OpenVM_PushFunctionArgs :: proc(data: []any, stack: ^OpenVM_Stack) {
-    stack_mutex := &stack.mutex
-    sync.lock(stack_mutex)
-    defer sync.unlock(stack_mutex)
-    stack.function_arg_stack = data
-    stack.function_arg_stack_size = size_of(stack.function_arg_stack)
+// Heap operations
+@export
+OpenVM_CreateHeap :: proc() -> Types.OpenVM_Heap {
+    return new(Types.OpenVM_Heap)^
 }
 
-OpenVM_ClearFunctionArgs :: proc(stack: ^OpenVM_Stack) {
-    stack_mutex := &stack.mutex
-    sync.lock(stack_mutex)
-    defer sync.unlock(stack_mutex)
+@export
+OpenVM_DeleteHeap :: proc(heap: ^Types.OpenVM_Heap) -> mem.Allocator_Error {
+    sync.lock(&heap.mutex)
+    defer sync.unlock(&heap.mutex)
+    for heap_obj in heap.heap_objects {
+        free(heap_obj)
+    }
+    return free(heap)
 }
 
-// heap and gc suffering
-
-
-OpenVM_HeapObject :: struct {
-    size: uint,
-    data: any,
-    refcount: u128,
-
-
+@export
+OpenVM_HeapAllocate :: proc(heap: ^Types.OpenVM_Heap, data: any) -> (Types.OpenVM_HeapObject, string) {
+    sync.lock(&heap.mutex)
+    defer sync.unlock(&heap.mutex)
+    heap_object: ^Types.OpenVM_HeapObject = new(Types.OpenVM_HeapObject)
+    buffer := [32]byte{}
+    heap_object.id = uuid.to_string_buffer(uuid.generate_v6(nil), buffer[:])
+    heap_object.data = data
+    heap_object.size = cast(uint)size_of(heap_object.data)
+    heap_object.refcount = 1
+    append_elem(&heap.heap_objects, heap_object)
+    heap.size += heap_object.size
+    return heap_object^, heap_object.id
 }
 
-OpenVM_Heap :: struct {
-    size: uint,
-    heap_objects: [dynamic]^OpenVM_HeapObject
+@export
+OpenVM_GC :: proc(heap: ^Types.OpenVM_Heap) {
+    sync.lock(&heap.mutex)
+    defer sync.unlock(&heap.mutex)
+    for heap_obj in heap.heap_objects {
+        if heap_obj.refcount == 0 {
+            free(heap_obj)
+        }
+    }
 }
