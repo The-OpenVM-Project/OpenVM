@@ -13,3 +13,4 @@ OpenVM_CheckLoadedMM :: proc() {
         panic("[OpenVM/Exception System]: <ERR_MEMORY_MANAGER_LOAD_FAILURE> Failed to load MemoryManager!")
     }
 }
+

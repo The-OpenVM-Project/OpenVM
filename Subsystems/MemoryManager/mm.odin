@@ -10,6 +10,26 @@ import "../../OpenVMLibraryLoader/Types"
 GlobalQueue: Types.Queue
 QueueMutex: sync.Mutex
 
+// Registers
+REG_A_MUTEX: sync.Mutex
+REG_A: int
+
+REG_B_MUTEX: sync.Mutex
+REG_B: f64
+
+REG_C_MUTEX: sync.Mutex
+REG_C: string
+
+
+ERR_REG_A_MUTEX: sync.Mutex
+ERR_REG_A: i128
+
+ERR_REG_B_MUTEX: sync.Mutex
+ERR_REG_B: i32
+
+ERR_REG_C_MUTEX: sync.Mutex
+ERR_REG_C: i8
+
 // Initialize the global queue (must be called before use)
 @export
 OpenVM_InitQueue :: proc() {
