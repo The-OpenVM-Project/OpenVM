@@ -21,13 +21,20 @@ REG_C_MUTEX: sync.Mutex
 REG_C: string
 
 
+// NOTE: see the Exeption System for functions relating to error registers
+@export
 ERR_REG_A_MUTEX: sync.Mutex
-ERR_REG_A: i128
+@export
+ERR_REG_A: Types.EXCEPTIONS
 
+@export
 ERR_REG_B_MUTEX: sync.Mutex
+@export
 ERR_REG_B: i32
 
+@export
 ERR_REG_C_MUTEX: sync.Mutex
+@export
 ERR_REG_C: i8
 
 // Initialize the global queue (must be called before use)

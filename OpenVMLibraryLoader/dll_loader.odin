@@ -4,6 +4,7 @@ import "core:dynlib"
 import "core:os"
 import "core:mem"
 import "core:fmt"
+import "core:sync"
 import "Types"
 
 /*
@@ -72,6 +73,12 @@ EXCEPTION_SYSTEM_DYNAMIC_LIB :: "ExceptionSystem" + dynlib.LIBRARY_FILE_EXTENSIO
 
 
 INTERNAL_MemoryManager :: struct {
+    ERR_REG_A_MUTEX: ^sync.Mutex,
+    ERR_REG_A: ^Types.EXCEPTIONS,
+    ERR_REG_B_MUTEX: ^sync.Mutex,
+    ERR_REG_B: ^i32,
+    ERR_REG_C_MUTEX: ^sync.Mutex,
+    ERR_REG_C: ^i8,
     OpenVM_CreateQueue: proc() -> Types.Queue,
     OpenVM_Enqueue:  proc(queue: ^Types.Queue, value: any),
     OpenVM_Dequeue: proc(queue: ^Types.Queue) -> any,
@@ -94,6 +101,13 @@ INTERNAL_MemoryManager :: struct {
 
 INTERNAL_ExeptionSystem :: struct {
     MM: ^INTERNAL_MemoryManager,
+    OpenVM_CrashAndBurn: proc(error_code: Types.EXCEPTIONS, error_message: string, cleanup_func: proc()),
+    OpenVM_SetERR_REG_A: proc(error_code: Types.EXCEPTIONS),
+    OpenVM_GetERR_REG_A: proc() -> Types.EXCEPTIONS,
+    OpenVM_SetERR_REG_B: proc(error_code: i32),
+    OpenVM_GetERR_REG_B: proc() -> i32,
+    OpenVM_SetERR_REG_C: proc(error_code: i8),
+    OpenVM_GetERR_REG_C: proc() -> i8,
 
     __handle: dynlib.Library
 }
@@ -116,8 +130,8 @@ OpenVM_LoadSubsystems :: proc(MM_struct: ^INTERNAL_MemoryManager, ES_struct: ^IN
     }
     else {
         when ODIN_DEBUG {
-            fmt.printfln("(DEBUG_MODE) [OpenVM/Subsystem Loader]: <LOADED_SYMBOLS_COUNT_MEM_MANAGER_SUBSYS>  ~ %d", count)
         }
+        ES_struct.MM = MM_struct
     }
     count, ok = dynlib.initialize_symbols(ES_struct, LIB_DIRECTORY + EXCEPTION_SYSTEM_DYNAMIC_LIB)
     if !ok {
