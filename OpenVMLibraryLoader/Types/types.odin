@@ -1,6 +1,7 @@
 package Types
 
 import "core:sync"
+import "core:os"
 
 // Memory Manager Types
 
@@ -43,4 +44,13 @@ EXCEPTIONS :: enum {
     HEAP_ALLOC_FAILED,    // Memory allocation failure
     INVALID_OPCODE,       // Unknown or invalid opcode
     SEGMENTATION_FAULT    // Invalid memory access (e.g., access violation)
+}
+
+// IO types
+
+OpenVM_FileIOObject :: struct {
+    err: os.Error,
+    handle: os.Handle,
+    file_path: string,
+    file_size: u64,
 }

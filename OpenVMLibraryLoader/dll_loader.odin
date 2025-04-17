@@ -65,10 +65,16 @@ SOFTWARE.
 OPENVM_VERSION :: "0.0.1"
 
 // Whether to load the Runtime dynamic library or not (Useful if you are coding a custom runtime)
-OPENVM_CUSTOM_RUNTIME :: #config(openvm_use_custom_runtime, false)
+OPENVM_USE_CUSTOM_RUNTIME :: #config(openvm_use_custom_runtime, true)
+// the actual runtime path
+OPENVM_CUSTOM_RUNTIME :: #config(openvm_custom_runtime_path, "") + dynlib.LIBRARY_FILE_EXTENSION
+
+
+
 RUNTIME_DYNAMIC_LIB :: "Runtime" + dynlib.LIBRARY_FILE_EXTENSION
 MEMORY_MANAGER_DYNAMIC_LIB :: "MemoryManager" + dynlib.LIBRARY_FILE_EXTENSION
 EXCEPTION_SYSTEM_DYNAMIC_LIB :: "ExceptionSystem" + dynlib.LIBRARY_FILE_EXTENSION
+IO_SYSTEM_DYNAMIC_LIB :: "IO" + dynlib.LIBRARY_FILE_EXTENSION
 
 
 
@@ -112,6 +118,17 @@ INTERNAL_ExeptionSystem :: struct {
     __handle: dynlib.Library
 }
 
+INTERNAL_IOSystem :: struct {
+    OpenVM_Print: proc(str: string),
+    OpenVM_Input: proc(prompt: string) -> string,
+    OpenVM_OpenFile: proc(file_path: string) -> ^Types.OpenVM_FileIOObject,
+    OpenVM_ReadFile: proc(openvm_file_obj: ^Types.OpenVM_FileIOObject) -> (file_data: []byte, ok: bool),
+    OpenVM_WriteFile: proc(openvm_file_obj: ^Types.OpenVM_FileIOObject, data: []byte) -> bool,
+    OpenVM_CloseFile: proc(openvm_file_obj: ^Types.OpenVM_FileIOObject),
+    OpenVM_RunComand: proc(command: []string, working_dir: string) -> (stdout: []byte, stderr: []byte),
+    __handle: dynlib.Library
+}
+
 /*
 NOTE: In exacutables using the subsystems
 set this to the Path to OpenVM + the `lib` directory
@@ -123,13 +140,14 @@ LIB_DIRECTORY :: ""
 NOTE: ONLY CALL IN AN EXACUTABLE
 as the all subsystems expect to already be loaded before they initalize
 */
-OpenVM_LoadSubsystems :: proc(MM_struct: ^INTERNAL_MemoryManager, ES_struct: ^INTERNAL_ExeptionSystem) {
+OpenVM_LoadSubsystems :: proc(MM_struct: ^INTERNAL_MemoryManager, ES_struct: ^INTERNAL_ExeptionSystem, IO_struct: ^INTERNAL_IOSystem) {
     count, ok := dynlib.initialize_symbols(MM_struct, LIB_DIRECTORY + MEMORY_MANAGER_DYNAMIC_LIB)
     if !ok {
         fmt.panicf("[OpenVM/Subsystem Loader]: <LOAD_DYNAMIC_LIB_ERR> ~ %s", dynlib.last_error())
     }
     else {
         when ODIN_DEBUG {
+            fmt.printfln("(DEBUG_MODE) [OpenVM/Subsystem Loader]: <LOADED_SYMBOLS_COUNT_MEMMORY_MANAGMENT_SUBSYS>  ~ %d", count)
         }
         ES_struct.MM = MM_struct
     }
@@ -140,6 +158,16 @@ OpenVM_LoadSubsystems :: proc(MM_struct: ^INTERNAL_MemoryManager, ES_struct: ^IN
     else {
         when ODIN_DEBUG {
             fmt.printfln("(DEBUG_MODE) [OpenVM/Subsystem Loader]: <LOADED_SYMBOLS_COUNT_EXEPTION_SYS_SUBSYS>  ~ %d", count)
+        }
+    }
+    count, ok = dynlib.initialize_symbols(IO_struct, LIB_DIRECTORY + IO_SYSTEM_DYNAMIC_LIB)
+
+    if !ok {
+        fmt.panicf("[OpenVM/Subsystem Loader]: <LOAD_DYNAMIC_LIB_ERR> ~ %s", dynlib.last_error())
+    }
+    else {
+        when ODIN_DEBUG {
+            fmt.printfln("(DEBUG_MODE) [OpenVM/Subsystem Loader]: <LOADED_SYMBOLS_COUNT_IO_SUBSYS>  ~ %d", count)
         }
     }
 }

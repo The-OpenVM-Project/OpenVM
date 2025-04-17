@@ -1,19 +1,29 @@
 HEADER_START
 OPENVM_VERSION 0.0.1
 MULTI_THREADED true
-PROGRAM_NAME "OpenVM Function and Thread Management Example with Queue"
-PROGRAM_DESCRIPTION "Demonstrates function definition, thread management, printing, and queue operations in OpenVM."
+PROGRAM_NAME "OpenVM Example Program"
+PROGRAM_DESCRIPTION "Demonstrates most of the bytecode instructions in OpenVM."
 HEADER_END
 
 PROGRAM_START
 
+
 REGISTER_CONST_STRING GREETING "Hello from OpenVM!"
 REGISTER_VAR_INT counter 0
+REGISTER_VAR_INTERNAL_PTR file_handle 0
 
 FUNC_DEF print STRING_ARG text
     THREAD_SPIN_UP 2
     PRINT text
     THREAD_TERMINATE 2
+END_FUNC_DEF
+
+FUNC_DEF file_example STRING_ARG file_text_to_write, STRING_ARG file_path
+    THREAD_SPIN_UP 3
+    MOV file_handle, OPEN_FILE file_path
+    WRITE_TO_FILE file_handle, file_text_to_write
+    CLOSE_FILE file_handle
+    THREAD_TERMINATE 3
 END_FUNC_DEF
 
 FUNC_DEF queue_example
@@ -28,7 +38,7 @@ FUNC main
     MOV REG_A, counter
     ADD REG_A, 5
     MOV REG_C, GREETING
-    FUNCTION_CALL print REG_C
+    FUNCTION_CALL print, REG_C
     FUNCTION_CALL queue_example
     PRINT "Main program complete."
 END_FUNC

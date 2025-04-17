@@ -17,6 +17,7 @@ OpenVM offers a variety of subsystems, each implemented as a DLL. These subsyste
 *   **Runtime** - The core execution environment of OpenVM, responsible for program execution, threading, scheduling, and task management.
 *   **IO (Input/Output)** - Manages all I/O operations, such as file handling, network communications, and interacting with user interfaces.
 *   **Exception Handling** - A subsystem dedicated to managing errors, exceptions, and stack unwinding. It helps ensure that programs can gracefully handle unexpected situations.
+* **FFI** - Calls out to dynamic libraries whith the c calling convention
 
 How OpenVM Works
 ----------------
