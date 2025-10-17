@@ -6,7 +6,8 @@ import "core:mem"
 // Initial number of slots to preallocate in the OpenVM heap
 OPEN_VM_HEAP_PREALLOC_SIZE :: #config(openvm_heap_prealloc_size, 25)
 
-// Initial capacity of OpenVM stacks
+// Initial capacity of OpenVM's stack
+// Set to 600 slots at default but openVM can run with as little as 3
 OPEN_VM_STACK_INITIAL_CAPACITY :: #config(openvm_stack_initial_cap, 600)
 
 
@@ -21,7 +22,6 @@ PreallocUsed: uint
 InitHeap :: proc() {
     PreallocHeap = make([]Value, OPEN_VM_HEAP_PREALLOC_SIZE)
     PreallocUsed = 0
-    log(.DEBUG, "OPENVM.MEMORY.HEAP.INIT", "Heap initialized with preallocated slots: %d", OPEN_VM_HEAP_PREALLOC_SIZE)
 }
 
 // Allocates a Value on the OpenVM heap
@@ -31,13 +31,10 @@ AllocHeap :: proc(val: Value) -> uintptr {
     if PreallocUsed < OPEN_VM_HEAP_PREALLOC_SIZE {
         slot = &PreallocHeap[PreallocUsed]
         PreallocUsed += 1
-        log(.DEBUG, "OPENVM.MEMORY.HEAP.ALLOC", "Allocated preallocated slot #%d at %p, value=%v", PreallocUsed-1, slot, val)
-    } else {
         slot, err := new(Value)
         if err != .None {
             panic("OPENVM.INTERNAL.MEMORY.HEAP.FAILED_ALLOCATION")
         }
-        log(.DEBUG, "OPENVM.MEMORY.HEAP.ALLOC", "Allocated OS heap slot at %p, value=%v", slot, val)
     }
 
     slot^ = val
@@ -57,9 +54,6 @@ FreeHeap :: proc(ptr: uintptr) {
         if err != .None {
             panic("OPENVM.INTERNAL.MEMORY.HEAP.FAILED_FREE")
         }
-        log(.DEBUG, "OPENVM.MEMORY.HEAP.FREE", "Freed OS heap slot at %p, value=%v", slot, val)
-    } else {
-        log(.DEBUG, "OPENVM.MEMORY.HEAP.FREE", "Skipped freeing preallocated slot at %p, value=%v", slot, slot^)
     }
 }
 
@@ -67,7 +61,6 @@ FreeHeap :: proc(ptr: uintptr) {
 Load :: proc(ptr: uintptr) -> Value {
     slot := cast(^Value)ptr
     val := slot^
-    log(.DEBUG, "OPENVM.MEMORY.HEAP.LOAD", "Loaded value=%v from %p", val, slot)
     return val
 }
 
@@ -75,9 +68,7 @@ Load :: proc(ptr: uintptr) -> Value {
 Store :: proc(ptr: uintptr, val: Value) {
     slot := cast(^Value)ptr
     slot^ = val
-    log(.DEBUG, "OPENVM.MEMORY.HEAP.STORE", "Stored value=%v to %p", val, slot)
 }
-
 
 // OpenVM stack type
 Stack :: [dynamic]Value
