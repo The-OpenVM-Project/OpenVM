@@ -1,120 +1,147 @@
 package OpenVM
 
+import "base:runtime"
+import "../../lib/Neutron"
 import "core:mem"
 
+// Memory Layout Explanation:
+// ----------------------------------------------------------
+// The union takes the size of its largest member and is aligned 
+// according to that member’s natural alignment. Here’s the breakdown:
+//
+// 1. On an 8-bit CPU:
+//    - f32le: 4 bytes (software-emulated floating-point)
+//    - string: 2 bytes (pointer size on 16-bit addressing, may be 1 byte on small 8-bit MCUs)
+//    - b8: 1 byte
+//    - uintptr: 2 bytes
+//    => Union size = 4 bytes (f32le is largest), alignment = 2 bytes (largest member alignment)
+//
+// 2. On a 16-bit CPU:
+//    - f32le: 4 bytes
+//    - string: 2 bytes (pointer)
+//    - b8: 1 byte
+//    - uintptr: 2 bytes
+//    => Union size = 4 bytes, alignment = 2 bytes
+//
+// 3. On a 32-bit CPU:
+//    - f32le: 4 bytes
+//    - string: 4 bytes (pointer)
+//    - b8: 1 byte
+//    - uintptr: 4 bytes
+//    => Union size = 4 bytes, alignment = 4 bytes
+//
+// 4. On a 64-bit CPU:
+//    - f32le: 4 bytes
+//    - string: 8 bytes (pointer)
+//    - b8: 1 byte
+//    - uintptr: 8 bytes
+//    => Union size = 8 bytes, alignment = 8 bytes
+//
+// Notes:
+// - Accessing smaller members like b8 may involve padding depending on CPU alignment.
+// - All arithmetic or copying operations must operate on the full union size to remain safe.
+// - Using b8 for booleans keeps memory usage low and avoids expensive emulation on small CPUs.
+// - The union is portable across 8/16/32/64-bit CPUs as long as the backing allocator respects alignment.
+//
+// Overall, this layout ensures:
+//   • Efficient memory usage on small CPUs
+//   • Correct alignment for all members
+//   • Portability across architectures
+Value :: union {
+    f32le,   // Numbers
+    string,  // Strings
+    b8,      // Bool 
+             // (NOTE: We use b8 instead of b32 to avoid emulating 32-bit values on an 8-bit CPU,
+             // which would be very expensive in terms of CPU cycles. On 8-bit CPUs, arithmetic
+             // and comparisons on values larger than 8 bits require multiple instructions,
+             // so using b8 keeps boolean operations cheap and efficient.)
+    uintptr  // Heap handle
+             // This is the largest member on 32-bit and 64-bit CPUs. Its size determines the 
+             // alignment and overall size of the union. On 32-bit CPUs, uintptr is 4 bytes; 
+             // on 64-bit CPUs, it's 8 bytes; on 16-bit, it's 2 bytes.
+}
 
-// Initial number of slots to preallocate in the OpenVM heap
-OPEN_VM_HEAP_PREALLOC_SIZE :: #config(openvm_heap_prealloc_size, 25)
+HeapAllocator: ^Neutron.Allocator
 
-// Initial capacity of OpenVM's stack
-// Set to 600 slots at default but openVM can run with as little as 3
-OPEN_VM_STACK_INITIAL_CAPACITY :: #config(openvm_stack_initial_cap, 600)
-
-
-// Preallocated block for fast initial allocations
-PreallocHeap: []Value
-
-// Number of slots used in the preallocated block
-PreallocUsed: uint
-
-// Initializes the OpenVM heap
-@init
+@private
 InitHeap :: proc() {
-    PreallocHeap = make([]Value, OPEN_VM_HEAP_PREALLOC_SIZE)
-    PreallocUsed = 0
+    HeapAllocator = Neutron.InitAllocator(false)
 }
 
-// Allocates a Value on the OpenVM heap
-AllocHeap :: proc(val: Value) -> uintptr {
-    slot: ^Value
+@private
+DestroyHeap :: proc() {
+    Neutron.DeleteAllocator(HeapAllocator)
+}
 
-    if PreallocUsed < OPEN_VM_HEAP_PREALLOC_SIZE {
-        slot = &PreallocHeap[PreallocUsed]
-        PreallocUsed += 1
-        slot, err := new(Value)
-        if err != .None {
-            panic("OPENVM.INTERNAL.MEMORY.HEAP.FAILED_ALLOCATION")
+@(require_results, private)
+AllocateValue :: proc(data: Value) -> uintptr {
+    data := data
+    dat_ptr := Neutron.Alloc(.NUMERIC, size_of(Value), HeapAllocator)
+    mem.copy(dat_ptr, &data, size_of(Value))
+    return cast(uintptr)dat_ptr
+}
+
+@private
+FreeValue :: proc(handle: uintptr) {
+    Neutron.Free(cast(rawptr)handle, HeapAllocator)
+}
+
+// OpenVM can work with as little as 4 without any external functions
+// if you are realy memory constrained
+STACK_CAP :: #config(openvm_stack_cap, 600)
+
+Stack :: struct {
+    data: []Value,
+    cap: u32,
+    ptr: u32 // points to next free slot, also indicates stack size
+}
+
+@private
+InitStack :: proc(cap: u32 = STACK_CAP) -> ^Stack {
+    stack := new(Stack)
+    stack.data = make([]Value, cap)
+    stack.ptr = 0
+    stack.cap = cap
+    return stack
+}
+
+@private
+DestroyStack :: proc(#no_alias stack: ^Stack) {
+    delete(stack.data)
+    free(stack)
+}
+
+/*
+NOTE(A-Boring-Square):
+Vararg push for multiple values at once.
+*/
+StackPush :: proc(#no_alias stack: ^Stack, data: ..Value) {
+    for value in data {
+        if stack.ptr >= stack.cap {
+            Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack overflow")
+            panic("OPEN_VM.MEMORY_MANAGER.STACK_OVERFLOW")
         }
-    }
 
-    slot^ = val
-    return cast(uintptr)slot
-}
-
-// Frees a previously allocated Value
-FreeHeap :: proc(ptr: uintptr) {
-    slot := cast(^Value)ptr
-
-    prealloc_start := &PreallocHeap[0]
-    prealloc_end := &PreallocHeap[PreallocUsed-1]
-
-    if slot < prealloc_start || slot > prealloc_end {
-        val := slot^
-        err := mem.free(slot)
-        if err != .None {
-            panic("OPENVM.INTERNAL.MEMORY.HEAP.FAILED_FREE")
-        }
+        stack.data[stack.ptr] = value
+        stack.ptr += 1
     }
 }
 
-// Loads a Value from a heap pointer
-Load :: proc(ptr: uintptr) -> Value {
-    slot := cast(^Value)ptr
-    val := slot^
-    return val
-}
-
-// Stores a Value to a heap pointer
-Store :: proc(ptr: uintptr, val: Value) {
-    slot := cast(^Value)ptr
-    slot^ = val
-}
-
-// OpenVM stack type
-Stack :: [dynamic]Value
-
-// Creates a new stack
-CreateStack :: proc() -> Stack {
-    return make(Stack, 0, OPEN_VM_STACK_INITIAL_CAPACITY)
-}
-
-// Deletes a stack
-DeleteStack :: proc(stack: ^Stack) {
-    delete(stack^)
-}
-
-// Pops the top value from a stack
-PopStack :: proc(stack: ^Stack) -> Value {
-    return pop(stack)
-}
-
-// Peeks the top value of the stack
-PeekStack :: proc(stack: ^Stack) -> Value {
-    if len(stack^) == 0 {
-        panic("OPENVM.MEMORY.STACK.PEEK.EMPTY")
+StackPop :: proc(#no_alias stack: ^Stack) -> Value {
+    if stack.ptr == 0 {
+        Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack underflow")
+        panic("OPEN_VM.MEMORY_MANAGER.STACK_UNDERFLOW")
     }
-    return stack^[len(stack^)-1]
+
+    stack.ptr -= 1
+    return stack.data[stack.ptr]
 }
 
-// Pushes a value onto the stack
-PushStack :: proc(stack: ^Stack, data: Value) {
-    append(stack, data)
-}
-
-// Injects a value into a specific slot of the stack
-InjectStack :: proc(stack: ^Stack, slot: uint, data: Value) {
-    if slot < len(stack^) {
-        stack^[slot] = data
-    } else {
-        panic("OPENVM.MEMORY.STACK.INJECT.INVALID_SLOT")
+StackTop :: proc(stack: ^Stack) -> Value {
+    if stack.ptr == 0 {
+        Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack is empty")
+        panic("OPEN_VM.MEMORY_MANAGER.STACK_EMPTY")
     }
-}
 
-// Gets a value from a specific stack slot
-GetValueFromSlot :: proc(stack: ^Stack, slot: uint) -> Value {
-    if slot < len(stack^) {
-        return stack^[slot]
-    } else {
-        panic("OPENVM.MEMORY.STACK.EXTERNAL.GET_VALUE.INVALID_SLOT")
-    }
+    return stack.data[stack.ptr - 1]
 }

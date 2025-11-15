@@ -19,62 +19,56 @@
 
 <h2>1. Metadata</h2>
 <pre><code>
-%META_NAME% <- "OpenVM Program";
-%META_AUTHOR% <- "A-Boring-Square, Reveng-ist, and contributors";
-%META_VERSION% <- "1.0.0-ST";
+%META_NAME% <- "OpenVM Program"
+%META_AUTHOR% <- "A-Boring-Square, Reveng-ist, and contributors"
+%META_VERSION% <- "1.0.0-ST"
 </code></pre>
 
 <h2>2. Overview</h2>
 <p>
-OpenVM is a deterministic, single-threaded virtual machine designed around a simple <strong>stack and opcode</strong> architecture.  
-It executes instructions in linear order, beginning at instruction address <code>0</code> in the loaded bytecode.  
-Functions are declared regions of code, but they are only executed when explicitly <code>CALL</code>ed.
-</p>
-
-<p>
-The VM performs no implicit function calls — including <code>main</code>.  
-If execution begins inside a function body, it behaves like ordinary code.
+OpenVM is a deterministic, single-threaded virtual machine built on a <strong>stack and opcode</strong> model.  
+Instructions execute linearly from instruction address <code>0</code>.  
+Functions are callable regions of code and only run when explicitly <code>CALL</code>ed.
 </p>
 
 <h2>3. Functions</h2>
 <pre>
-FUNCTION &lt;name&gt; (&lt;arg1&gt;, &lt;arg2&gt;, ...)
+FUNCTION &lt;name&gt;
     ; instructions
 END_FUNCTION
 </pre>
 <p>
-Functions are symbolic markers in bytecode used by assemblers and compilers to define callable instruction ranges.  
-At runtime, the VM only enters a function through the <code>CALL</code> instruction.  
-No automatic function entry or exit occurs.
+Functions do not execute automatically.  
+At runtime, they are entered only through the <code>CALL</code> instruction, The VM saves the return address.
 </p>
 
 <h2>4. Stack-Based Instructions</h2>
 <table>
 <tr><th>Instruction</th><th>Description</th></tr>
-<tr><td>PUSH &lt;value&gt;</td><td>Push constant, integer, float, or string onto the stack.</td></tr>
-<tr><td>POP</td><td>Pop the top stack value.</td></tr>
-<tr><td>DUP</td><td>Duplicate the top stack value.</td></tr>
-<tr><td>ADD / SUB / MUL / DIV</td><td>Pop two numeric values, perform operation, push result.</td></tr>
-<tr><td>CALL &lt;func&gt;</td><td>stores the curent ip+1 then jumps to function start.</td></tr>
-<tr><td>RET</td><td>Pop top of stack as return value and jump back to where the <code>CALL</code> function was.</td></tr>
-<tr><td>PRINT</td><td>Pop top of stack and print to stdout.</td></tr>
-<tr><td>PRINT_ERR</td><td>Pop top of stack and print to stderr.</td></tr>
+<tr><td>PUSH &lt;value&gt;</td><td>Push a constant (number, string, or boolean) onto the stack.</td></tr>
+<tr><td>POP</td><td>Remove the top stack value and discard it.</td></tr>
+<tr><td>DUP</td><td>Duplicate the top value on the stack.</td></tr>
+<tr><td>ADD / SUB / MUL / DIV</td><td>Pop two numeric values, perform arithmetic, push result.</td></tr>
+<tr><td>CALL &lt;func&gt;</td><td>Push current IP + 1 to call stack, then jump to function start.</td></tr>
+<tr><td>RET</td><td>Pop return value from stack, restore IP from call stack, push return value back onto stack.</td></tr>
+<tr><td>PRINT</td><td>Pop top value and print to stdout.</td></tr>
+<tr><td>PRINT_ERR</td><td>Pop top value and print to stderr.</td></tr>
 <tr><td>READ</td><td>Pop prompt string, display it, push user input as string.</td></tr>
-<tr><td>FILE_WRITE</td><td>Pop <code>data</code> then <code>filename</code>; write file. Push 0 on success, 1 on failure.</td></tr>
-<tr><td>FILE_READ</td><td>Pop <code>filename</code>; push contents or 1 on failure.</td></tr>
-<tr><td>FILE_APPEND</td><td>Pop <code>data</code> then <code>filename</code>; append to file. Push 0/1.</td></tr>
+<tr><td>FILE_WRITE</td><td>Pop <code>filename</code>, then <code>data</code>; write file. Push 0 on success, 1 on failure.</td></tr>
+<tr><td>FILE_READ</td><td>Pop <code>filename</code>; push file contents, then length (0 if failure).</td></tr>
+<tr><td>FILE_APPEND</td><td>Pop <code>filename</code>, then <code>data</code>; append to file. Push 0/1.</td></tr>
 <tr><td>FILE_DELETE</td><td>Pop <code>filename</code>; delete file. Push 0/1.</td></tr>
 <tr><td>FILE_EXISTS</td><td>Pop <code>filename</code>; push 1 if exists, else 0.</td></tr>
-<tr><td>FILE_RENAME</td><td>Pop <code>new_filename</code> then <code>old_filename</code>; rename file. Push 0/1.</td></tr>
+<tr><td>FILE_RENAME</td><td>Pop <code>old_filename</code>, then <code>new_filename</code>; rename file. Push 0/1.</td></tr>
 </table>
 
 <h2>5. Arithmetic and Logic</h2>
 <table>
 <tr><th>Instruction</th><th>Description</th></tr>
-<tr><td>EQ / NEQ</td><td>Pop two values; push 1 if equal/not equal, else 0.</td></tr>
-<tr><td>LT / GT / LTE / GTE</td><td>Pop two values, compare numerically, push boolean result.</td></tr>
-<tr><td>NEG</td><td>Negate numeric top of stack.</td></tr>
-<tr><td>NOT</td><td>Logical NOT (0 → 1, nonzero → 0).</td></tr>
+<tr><td>EQ / NEQ</td><td>Pop two values; push 1 if equal / not equal, else 0.</td></tr>
+<tr><td>LT / GT / LTE / GTE</td><td>Pop two numeric values; push 1 if comparison holds, else 0.</td></tr>
+<tr><td>NEG</td><td>Negate the numeric top of stack.</td></tr>
+<tr><td>NOT</td><td>Logical NOT: 0 → 1, nonzero → 0.</td></tr>
 </table>
 
 <h2>6. Control Flow</h2>
@@ -84,71 +78,62 @@ No automatic function entry or exit occurs.
 <tr><td>JMP &lt;ip&gt;</td><td>Unconditional jump to instruction address.</td></tr>
 <tr><td>JMP_IF_ZERO &lt;ip&gt;</td><td>Pop value; jump if it equals 0.</td></tr>
 <tr><td>JMP_IF_NOT_ZERO &lt;ip&gt;</td><td>Pop value; jump if it does not equal 0.</td></tr>
-<tr><td>LABEL &lt;name&gt;</td><td>Defines a symbolic jump target (assembler directive only).</td></tr>
 </table>
 
 <h2>7. Variables</h2>
 <p>
+<h2>7. Variables</h2>
+<p>
 OpenVM is <strong>dynamically typed</strong>.  
-Local variables (VAR/SET/GET) are handled entirely by the assembler; they correspond to stack positions.  
-Global variables (GVAR/GSET/GGET) exist in a single global table accessible at runtime.
+Variables are supported but should be used sparingly, as they are relatively expensive operations compared to direct stack usage.  
+Under the hood, variable access involves symbol lookup and reference management.
 </p>
+
 <table>
 <tr><th>Instruction</th><th>Description</th></tr>
-<tr><td>VAR &lt;name&gt;</td><td>Assembler-managed local variable. Pushes default value onto the stack.</td></tr>
-<tr><td>SET &lt;name&gt;</td><td>Pop value from stack into local (stack position tracked by assembler).</td></tr>
-<tr><td>GET &lt;name&gt;</td><td>Push value from local stack position (assembler-managed).</td></tr>
-<tr><td>GVAR &lt;name&gt;</td><td>Declare a global variable in the VM's global table (default 0).</td></tr>
-<tr><td>GSET &lt;name&gt;</td><td>Pop value from stack and assign to global variable.</td></tr>
-<tr><td>GGET &lt;name&gt;</td><td>Push value of global variable onto stack.</td></tr>
+<tr><td>VAR &lt;name&gt;</td><td>Declare a local variable (initialized to 0 or empty value).</td></tr>
+<tr><td>SET &lt;name&gt;</td><td>Pop the top value from the stack and assign it to a local variable.</td></tr>
+<tr><td>GET &lt;name&gt;</td><td>Push the current value of a local variable onto the stack.</td></tr>
+<tr><td>GVAR &lt;name&gt;</td><td>Declare a global variable (initialized to 0 or empty value) in the global table.</td></tr>
+<tr><td>RGVAR &lt;name&gt;</td><td>Remove a global variable from the global table, freeing its reference.</td></tr>
+<tr><td>GSET &lt;name&gt;</td><td>Pop the top value from the stack and assign it to a global variable.</td></tr>
+<tr><td>GGET &lt;name&gt;</td><td>Push the current value of a global variable onto the stack.</td></tr>
 </table>
+
 
 <h2>8. Heap Memory</h2>
 <table>
 <tr><th>Instruction</th><th>Description</th></tr>
-<tr><td>ALLOC</td><td>Pop size, allocate heap block, push pointer.</td></tr>
-<tr><td>FREE</td><td>Pop pointer, free memory block.</td></tr>
-<tr><td>STORE</td><td>Pop value then pointer; store value at address.</td></tr>
-<tr><td>LOAD</td><td>Pop pointer, push stored value.</td></tr>
+<tr><td>ALLOC</td><td>Pop numeric size; allocate heap block; push pointer.</td></tr>
+<tr><td>FREE</td><td>Pop pointer; free heap block.</td></tr>
+<tr><td>STORE</td><td>Pop pointer, then value; store value at address.</td></tr>
+<tr><td>LOAD</td><td>Pop pointer; push stored value.</td></tr>
 </table>
 
 <h2>9. Execution Model</h2>
 <p>
-OpenVM executes opcodes sequentially, starting from instruction pointer <strong>0</strong>.  
-There is no concept of “main” — the VM simply executes the bytecode as-is.  
-Functions are inert definitions unless explicitly <code>CALL</code>ed.
+All instructions execute sequentially unless a control-flow instruction alters IP.  
+Functions are only entered via <code>CALL</code>.  
+The VM halts only via <code>HALT</code> or end-of-bytecode.
 </p>
-
-<ul>
-<li>All operations are synchronous.</li>
-<li>No threads, atomic primitives, or concurrency exist in 1.0.</li>
-<li>Execution halts only via <code>HALT</code> or end-of-code.</li>
-</ul>
 
 <h2>10. Internal Data Representation</h2>
 <pre><code>
-typedef union OpenVM_Value {
-    double number; // number values (this includes adresses)
-    char* str;     // null-terminated strings
-    bool b;        // booleans
-} OpenVM_Value;
+Value :: union {
+    f32le, // numeric values and pointers
+    string, // strings
+    b8 // booleans
+}
 </code></pre>
-<p>
-The VM performs no runtime type checking; compilers and assemblers must guarantee correctness.
-</p>
 
-<h2>11. Bytecode Format and ovmbc</h2>
-<p>
-OpenVM programs are distributed as bytecode compiled by the <strong>ovmbc</strong> compiler.
-</p>
+<h2>11. Bytecode Format</h2>
 <ul>
-<li>Text-based source (<code>.ovmb</code>) → Binary (<code>.ovmp</code>).</li>
-<li>The binary format is internal and subject to change.</li>
-<li>Only the official OpenVM runtime is guaranteed to execute it correctly.</li>
+<li>Text-based bytecode files (<code>.ovmb</code>).</li>
+<li>Only the official OpenVM runtime guarantees correct execution.</li>
 </ul>
 
 <h2>12. Example Program</h2>
-<pre>
+<pre><code>
 %META_NAME% <- "Simple_IO";
 %META_AUTHOR% <- "A-Boring-Square";
 
@@ -159,18 +144,43 @@ FUNCTION write_message ()
     RET
 END_FUNCTION
 
-; --- Execution starts here (IP = 0) ---
+; --- Execution starts here ---
 CALL write_message
 PUSH "Done."
 PRINT
 HALT
+</code>
 </pre>
+
+<h2>13. Foreign Function Interface (FFI)</h2>
+<p>
+OpenVM supports calling native (host) code using <strong>callbacks</strong>.  
+All native functions operate on the VM stack directly via a pointer (<code>^Stack</code>).
+</p>
+
+<pre><code>
+// External function type
+ExternalFunction :: #type proc(stack: ^Stack)
+</code></pre>
+
+<pre><code>
+NativeCallbackFunction :: proc(stack: ^OpenVM.Stack) {
+    OpenVM.PAUSE() // suspend VM execution
+    // Native code operates on stack
+    value := OpenVM.PopStack(stack)
+    OpenVM.StackPush(stack, value * 2)
+    OpenVM.RESUME() // return control to VM
+}
+</code></pre>
+<p>
+When the VM executes the function, it automatically calls the native code with the stack pointer.
+</p>
 
 <h2>13. Notes</h2>
 <ul>
-<li>Execution begins at address 0, not at any function automatically.</li>
-<li>All I/O operations block until completion.</li>
-<li>Coroutines are planed for OpenVM version 2.0.</li>
+<li>Execution begins at IP = 0, not in any function automatically.</li>
+<li>All I/O operations block until complete.</li>
+<li>Coroutines are planned for OpenVM 2.0.</li>
 </ul>
 
 </body>

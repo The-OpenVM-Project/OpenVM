@@ -1,7 +1,16 @@
 package OpenVMLoader
 
-import "core:fmt"
 import "core:dynlib"
+
+/*
+The OpenVM stack
+NOTE(A-Boring-Square): this is opaque because
+the Stack is technicaly an internal implmentation detail
+*/
+Stack :: struct {}
+
+// External function type
+ExternalFunction :: #type proc(stack: ^Stack)
 
 OpenVM :: struct {
     
