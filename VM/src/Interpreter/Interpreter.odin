@@ -22,6 +22,8 @@ ExternalFunctionTable: map[string]ExternalFunction
 @(private="file")
 ProgramFunctionTable: map[string]u32
 
+
+
 @(private="file")
 FunctionIPSave: u32 // used only to save the instruction pointer for a `CALL` operation
 
@@ -48,7 +50,7 @@ DestroyFunctionTables :: proc() {
 }
 
 AddExternalFunction :: proc (name: string, function: ExternalFunction) {
-    if len(ExternalFunctionTable) + 1 < EXTERNAL_FUNTION_TABLE_CAPACITY {
+    if len(ExternalFunctionTable) + 1 > EXTERNAL_FUNTION_TABLE_CAPACITY {
         OpenVM.Log(
             .ERROR,
             "OPENVM.BYTECODE_INTERPRETER",
@@ -59,7 +61,7 @@ AddExternalFunction :: proc (name: string, function: ExternalFunction) {
 }
 
 AddProgramFunction :: proc(name: string, ip: u32) {
-        if len(ExternalFunctionTable) + 1 < EXTERNAL_FUNTION_TABLE_CAPACITY {
+        if len(ExternalFunctionTable) + 1 > EXTERNAL_FUNTION_TABLE_CAPACITY {
         OpenVM.Log(
             .ERROR,
             "OPENVM.BYTECODE_INTERPRETER",
@@ -70,7 +72,12 @@ AddProgramFunction :: proc(name: string, ip: u32) {
 }
 
 
+IsFunctionExternal :: proc(name: string) {
+
+}
+
 CallExternalFunction :: proc(name: string, stack: ^OpenVM.Stack) {
+    OpenVM.LOCAL_VAR_END_SCOPE() // Clear last scope if it exists
     OpenVM.LOCAL_VAR_INIT_SCOPE()
     extern := ExternalFunctionTable[name]
     msg := fmt.tprintf("Failed to call an external function named: %s", name)
@@ -84,7 +91,10 @@ CallExternalFunction :: proc(name: string, stack: ^OpenVM.Stack) {
     }
     OpenVM.LOCAL_VAR_END_SCOPE()
     free_all(context.temp_allocator)
+
+    extern(stack) // call the function
 }
+
 
 
 // This procedure deliberately crashes the VM immediately without cleanup
