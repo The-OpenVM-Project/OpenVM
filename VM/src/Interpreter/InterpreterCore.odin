@@ -1,5 +1,6 @@
 package OpenVMInterpreter
 
+
 import "core:fmt"
 import "core:os/os2"
 import "base:intrinsics"
@@ -72,8 +73,14 @@ AddProgramFunction :: proc(name: string, ip: u32) {
 }
 
 
-IsFunctionExternal :: proc(name: string) {
-
+IsFunctionExternal :: #force_inline proc(name: string) -> bool {
+    extern := ExternalFunctionTable[name]
+    if extern == nil {
+        return false
+    }
+    else {
+        return true
+    }
 }
 
 CallExternalFunction :: proc(name: string, stack: ^OpenVM.Stack) {
@@ -95,7 +102,13 @@ CallExternalFunction :: proc(name: string, stack: ^OpenVM.Stack) {
     extern(stack) // call the function
 }
 
-
+CheckValidIP :: #force_inline proc(ip: u32) {
+    for _, range in ProgramFunctionRanges {
+        if ip >= range.start_ip && ip < range.end_ip {
+            CRASH_AND_BURN() // illegal jump
+        }
+    }
+}
 
 // This procedure deliberately crashes the VM immediately without cleanup
 @(cold)

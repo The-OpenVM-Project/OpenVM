@@ -8,3 +8,8 @@ FunctionRange :: struct {
 }
 
 ProgramFunctionRanges: map[string]FunctionRange
+
+@(init)
+InitFunctionRangeTable :: proc() {
+    ProgramFunctionRanges = make_map_cap(map[string]FunctionRange, PROGRAM_FUNCTION_TABLE_CAPACITY)
+}
