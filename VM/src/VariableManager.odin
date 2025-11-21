@@ -70,11 +70,17 @@ RemoveGlobal :: proc(name: string) {
 LocalVariableTable: [dynamic]Variable
 
 LOCAL_VAR_INIT_SCOPE :: proc() {
+    if LocalVariableTable == nil {
     LocalVariableTable = make([dynamic]Variable, context.temp_allocator)
+    }
+    // Else: no-op
 }
 
 LOCAL_VAR_END_SCOPE :: proc() {
-    delete(LocalVariableTable)
+    if LocalVariableTable != nil {
+        delete(LocalVariableTable)
+        LocalVariableTable = nil
+    }
 }
 
 GetLocalVariable :: proc(name: string) -> (Value, bool) {

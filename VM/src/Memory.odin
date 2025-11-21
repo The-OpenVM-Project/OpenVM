@@ -1,5 +1,6 @@
 package OpenVM
 
+import "core:c"
 import "base:runtime"
 import "../../lib/Neutron"
 import "core:mem"
@@ -60,6 +61,23 @@ Value :: union {
              // alignment and overall size of the union. On 32-bit CPUs, uintptr is 4 bytes; 
              // on 64-bit CPUs, it's 8 bytes; on 16-bit, it's 2 bytes.
 }
+
+
+GetValueTypeID :: proc(value: Value) -> typeid {
+    type: typeid
+    switch v in value {
+        case f32le:
+            type = typeid_of(f32le)
+        case string:
+            type = typeid_of(string)
+        case b8:
+            type = typeid_of(b8)
+        case uintptr:
+            type = typeid_of(uintptr)
+    }
+    return type
+}
+
 
 HeapAllocator: ^Neutron.Allocator
 

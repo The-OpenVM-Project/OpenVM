@@ -80,21 +80,36 @@ At runtime, they are entered only through the <code>CALL</code> instruction, The
 <tr><td>JMP_IF_NOT_ZERO &lt;ip&gt;</td><td>Pop value; jump if it does not equal 0.</td></tr>
 </table>
 
-<h2>7. Variables</h2>
-<p>
+
 <h2>7. Variables</h2>
 <p>
 OpenVM is <strong>dynamically typed</strong>.  
 Variables are supported but should be used sparingly, as they are relatively expensive operations compared to direct stack usage.  
 Under the hood, variable access involves symbol lookup and reference management.
 </p>
+<h2>7.1 Global Variables</h2>
+
+<p>
+Global variables persist for the entire lifetime of the VM. These behave like standard script-level
+globals and are ideal for configuration, shared state, and long-lived values.
+</p>
+<h3>7.2 Local Variables</h3>
+
+<p>
+Local variables are <strong>single-scope</strong>. They exist only for the currently running function.
+Calling another function replaces the previous scope, so local variables do <em>not</em> support recursion
+or nested scopes. This design keeps them lightweight and fast to allocate. Local variables can only be
+created, modified, or removed inside a function; they cannot be used at the top-level scope or accessed
+from outside the function that owns them.
+</p>
+
 
 <table>
 <tr><th>Instruction</th><th>Description</th></tr>
-<tr><td>VAR &lt;name&gt;</td><td>Declare a local variable (initialized to 0 or empty value).</td></tr>
-<tr><td>SET &lt;name&gt;</td><td>Pop the top value from the stack and assign it to a local variable.</td></tr>
-<tr><td>GET &lt;name&gt;</td><td>Push the current value of a local variable onto the stack.</td></tr>
-<tr><td>GVAR &lt;name&gt;</td><td>Declare a global variable (initialized to 0 or empty value) in the global table.</td></tr>
+<tr><td>LVAR &lt;name&gt;</td><td>Declare a local variable (initialized to 0).</td></tr>
+<tr><td>LSET &lt;name&gt;</td><td>Pop the top value from the stack and assign it to a local variable.</td></tr>
+<tr><td>LGET &lt;name&gt;</td><td>Push the current value of a local variable onto the stack.</td></tr>
+<tr><td>GVAR &lt;name&gt;</td><td>Declare a global variable (initialized to 0) in the global table.</td></tr>
 <tr><td>RGVAR &lt;name&gt;</td><td>Remove a global variable from the global table, freeing its reference.</td></tr>
 <tr><td>GSET &lt;name&gt;</td><td>Pop the top value from the stack and assign it to a global variable.</td></tr>
 <tr><td>GGET &lt;name&gt;</td><td>Push the current value of a global variable onto the stack.</td></tr>
@@ -137,7 +152,7 @@ Value :: union {
 %META_NAME% <- "Simple_IO";
 %META_AUTHOR% <- "A-Boring-Square";
 
-FUNCTION write_message ()
+FUNCTION write_message
     PUSH "output.txt"
     PUSH "Hello from OpenVM!"
     FILE_WRITE
