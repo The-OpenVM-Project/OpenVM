@@ -63,7 +63,7 @@ Value :: union {
 }
 
 
-GetValueTypeID :: proc(value: Value) -> typeid {
+GetValueTypeID :: #force_inline proc(value: Value) -> typeid {
     type: typeid
     switch v in value {
         case f32le:
@@ -78,6 +78,53 @@ GetValueTypeID :: proc(value: Value) -> typeid {
     return type
 }
 
+
+GetValueAsNumber :: proc(value: Value) -> Maybe(f32le) {
+    if GetValueTypeID(value) == typeid_of(f32le) {
+        return value.(f32le)
+    }
+    else {
+        return nil
+    }
+}
+
+GetValueAsString :: proc(value: Value) -> Maybe(string) {
+    if GetValueTypeID(value) == typeid_of(string) {
+        return value.(string)
+    }
+    else {
+        return nil
+    }
+}
+
+GetValueAsBool :: proc(value: Value) -> Maybe(b8) {
+    if GetValueTypeID(value) == typeid_of(b8) {
+        return value.(b8)
+    }
+    else {
+        return nil
+    }
+}
+
+GetValueAsHandle :: proc(value: Value) -> Maybe(uintptr) {
+    if GetValueTypeID(value) == typeid_of(uintptr) {
+        return value.(uintptr)
+    }
+    else {
+        return nil
+    }
+}
+
+AreValuesSameType :: #force_inline proc(a: Value, b: Value) -> bool {
+    a_type := GetValueTypeID(a)
+    b_type := GetValueTypeID(b)
+    if a_type != b_type {
+        return false
+    }
+    else {
+        return true
+    }
+}
 
 HeapAllocator: ^Neutron.Allocator
 
@@ -137,7 +184,6 @@ StackPush :: proc(#no_alias stack: ^Stack, data: ..Value) {
     for value in data {
         if stack.ptr >= stack.cap {
             Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack overflow")
-            panic("OPEN_VM.MEMORY_MANAGER.STACK_OVERFLOW")
         }
 
         stack.data[stack.ptr] = value
@@ -148,7 +194,6 @@ StackPush :: proc(#no_alias stack: ^Stack, data: ..Value) {
 StackPop :: proc(#no_alias stack: ^Stack) -> Value {
     if stack.ptr == 0 {
         Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack underflow")
-        panic("OPEN_VM.MEMORY_MANAGER.STACK_UNDERFLOW")
     }
 
     stack.ptr -= 1
@@ -158,7 +203,6 @@ StackPop :: proc(#no_alias stack: ^Stack) -> Value {
 StackTop :: proc(stack: ^Stack) -> Value {
     if stack.ptr == 0 {
         Log(.CRITICAL, "OPEN_VM.MEMORY_MANAGER.STACK", "Stack is empty")
-        panic("OPEN_VM.MEMORY_MANAGER.STACK_EMPTY")
     }
 
     return stack.data[stack.ptr - 1]

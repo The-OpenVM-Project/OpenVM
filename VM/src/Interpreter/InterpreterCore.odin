@@ -17,31 +17,34 @@ PROGRAM_FUNCTION_TABLE_CAPACITY :: #config(openvm_program_function_table_capacit
 ExternalFunction :: #type proc(stack: ^OpenVM.Stack)
 
 
+Function :: struct {
+    name: string,
+    code: []Token
+}
+
+
+
 @(private="file")
 ExternalFunctionTable: map[string]ExternalFunction
 
 @(private="file")
-ProgramFunctionTable: map[string]u32
+ProgramFunctionTable: map[string]Function
 
 
 
-@(private="file")
-FunctionIPSave: u32 // used only to save the instruction pointer for a `CALL` operation
 
-@(private="file")
-InstructionPointer: u32 // Instruction pointer after transforms to exclude functions
+InstructionPointer: u32 // Instruction pointer
 
-@(private="file")
-RawInstructionPointer: u32 // Raw instruction pointer (where the VM currently is in the bytecode stream)
+FunctionIP: u32 // Function internal instruction pointer
 
-@(private="file")
+
 IsVMRunning: bool = true
 
 
 @(init)
 InitFunctionTables :: proc() {
     ExternalFunctionTable = make_map_cap(map[string]ExternalFunction, EXTERNAL_FUNTION_TABLE_CAPACITY)
-    ProgramFunctionTable = make_map_cap(map[string]u32, PROGRAM_FUNCTION_TABLE_CAPACITY)
+    ProgramFunctionTable = make_map_cap(map[string]Function, PROGRAM_FUNCTION_TABLE_CAPACITY)
 }
 
 @(fini)
@@ -61,16 +64,6 @@ AddExternalFunction :: proc (name: string, function: ExternalFunction) {
     ExternalFunctionTable[name] = function
 }
 
-AddProgramFunction :: proc(name: string, ip: u32) {
-        if len(ExternalFunctionTable) + 1 > EXTERNAL_FUNTION_TABLE_CAPACITY {
-        OpenVM.Log(
-            .ERROR,
-            "OPENVM.BYTECODE_INTERPRETER",
-            "Registering a function has failed"
-        )
-    }
-    ProgramFunctionTable[name] = ip
-}
 
 
 IsFunctionExternal :: #force_inline proc(name: string) -> bool {
@@ -102,13 +95,6 @@ CallExternalFunction :: proc(name: string, stack: ^OpenVM.Stack) {
     extern(stack) // call the function
 }
 
-CheckValidIP :: #force_inline proc(ip: u32) {
-    for _, range in ProgramFunctionRanges {
-        if ip >= range.start_ip && ip < range.end_ip {
-            CRASH_AND_BURN() // illegal jump
-        }
-    }
-}
 
 // This procedure deliberately crashes the VM immediately without cleanup
 @(cold)

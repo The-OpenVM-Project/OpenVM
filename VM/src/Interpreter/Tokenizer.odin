@@ -1,5 +1,7 @@
+#+feature dynamic-literals
 package OpenVMInterpreter
 
+import "core:slice"
 import "core:strings"
 
 TokenType :: enum {
@@ -101,4 +103,40 @@ Tokenize :: proc(buff: ^[dynamic]Token, src: string) {
         i += 1
     }
     append(tokens, Token{TokenType.EOF, ""})
+}
+
+INSTRUCTION_SET: map[string]struct{}
+
+@init
+CreateINSTRUCTION_SET :: proc() {
+    INSTRUCTION_SET = {
+    "FUNCTION" = {}, "END_FUNCTION" = {},
+    "PUSH" = {}, "POP" = {}, "DUP" = {},
+    "ADD" = {}, "SUB" = {}, "MUL" = {}, "DIV" = {},
+    "CALL" = {}, "RET" = {}, "PRINT" = {},
+    "PRINT_ERR" = {}, "READ" = {},
+    "FILE_WRITE" = {}, "FILE_READ" = {},
+    "FILE_APPEND" = {}, "FILE_DELETE" = {},
+    "FILE_EXISTS" = {}, "FILE_RENAME" = {},
+    "EQ" = {}, "NEQ" = {}, "LT" = {}, "GT" = {},
+    "LTE" = {}, "GTE" = {}, "NEG" = {}, "NOT" = {},
+    "HALT" = {}, "JMP" = {}, "JMP_IF_ZERO" = {},
+    "JMP_IF_NOT_ZERO" = {}, "LVAR" = {}, "LSET" = {},
+    "LGET" = {}, "GVAR" = {}, "RGVAR" = {}, "GSET" = {},
+    "GGET" = {}, "ALLOC" = {}, "FREE" = {}, "STORE" = {},
+    "LOAD" = {}
+    }
+}
+
+@(fini)
+DestroyINSTRUCTION_SET :: proc() {
+    delete_map(INSTRUCTION_SET)
+}
+
+IsInstruction :: #force_inline proc(token: ^Token) -> bool {
+    if _, ok := INSTRUCTION_SET[token.text]; ok {
+        token.kind = .Instruction
+        return true
+    }
+    return false
 }

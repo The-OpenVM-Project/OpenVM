@@ -180,11 +180,9 @@ ExternalFunction :: #type proc(stack: ^Stack)
 
 <pre><code>
 NativeCallbackFunction :: proc(stack: ^OpenVM.Stack) {
-    OpenVM.PAUSE() // suspend VM execution
     // Native code operates on stack
     value := OpenVM.PopStack(stack)
     OpenVM.StackPush(stack, value * 2)
-    OpenVM.RESUME() // return control to VM
 }
 </code></pre>
 <p>
